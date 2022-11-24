@@ -1,0 +1,8 @@
+*.pyc
+*.log
+*.pth
+*.txt
+**/__pycache__
+**/data
+**.h5
+**/pretrained_model
