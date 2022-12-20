@@ -30,7 +30,7 @@ def train(config):
                   metrics=[keras.metrics.BinaryAccuracy()])
 
     # Make datasets
-    train_ds, val_ds = get_ds(config)[:2]
+    train_ds, val_ds, test_ds = get_ds(config)
 
     # Define callbacks.
     checkpoint_cb = keras.callbacks.ModelCheckpoint(
@@ -43,6 +43,8 @@ def train(config):
               callbacks=[checkpoint_cb, early_stopping_cb], 
               validation_data=val_ds
     )
+
+    print(f'\nEvaluacion del modelo:\n {model.evaluate(test_ds)}')
 
 
 

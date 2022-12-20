@@ -21,7 +21,7 @@ def test(config):
 
     print(f'Evaluacion = {model.evaluate(test_ds)}\n')
 
-    print(f'Predicciones = {model.predict(test_ds):.3f}')
+    print(f'Predicciones = {model.predict(test_ds)}')
     predictions = model.predict(test_ds)
 
     for pred in range(predictions.shape[0]):

@@ -7,8 +7,17 @@ import tensorflow as tf
 def preprocess(path, config):
 
     scan = nib.load(path)
-    scan = nibabel.processing.conform(scan, config['model_dims'])
-    vol  = np.float32(scan.get_fdata())
+    aff  = scan.affine
+    vol  = np.int16(scan.get_fdata())
+    print(f'shape = {vol.shape}, path = {path}')
+
+    # Resamplea volumen y affine a un nuevo shape
+    new_zooms  = np.array(scan.header.get_zooms()) * config['new_z']
+    new_shape  = np.array(vol.shape) // config['new_z']
+    new_affine = nibabel.affines.rescale_affine(aff, vol.shape, new_zooms, new_shape)
+    scan       = nibabel.processing.conform(scan, new_shape, new_zooms)
+    ni_img     = nib.Nifti1Image(scan.get_fdata(), new_affine)
+    vol        = np.int16(ni_img.get_fdata())
 
     return vol
 
@@ -22,20 +31,20 @@ def get_ds(config):
 
     # Formar lista con las rutas de los pacientes de la base de datos BraTS
     fcd_subjects_path = []
-    fcd_subjects = next(os.walk(config['iatm_fcd']))[1]
+    fcd_subjects = next(os.walk(config['reg_iatm_fcd']))[1]
     for fcd_subject in fcd_subjects:
         if 'FCD' in fcd_subject:
-            studies = next(os.walk(os.path.join(config['iatm_fcd'], fcd_subject)))[1]
+            studies = next(os.walk(os.path.join(config['reg_iatm_fcd'], fcd_subject)))[1]
             for study in studies:
                 #if 'AIM' not in study:
-                files = next(os.walk(os.path.join(config['iatm_fcd'], fcd_subject, study)))[2]
+                files = next(os.walk(os.path.join(config['reg_iatm_fcd'], fcd_subject, study)))[2]
                 for file_ in files:
                     if 'nii.gz' in file_ and not('json'      in file_ or 
                                                  'Displasia' in file_ or 
                                                  'DISPLASIA' in file_ or
                                                  'mask'      in file_ or
                                                  'Eq_1'      in file_):
-                        path = os.path.join(config['iatm_fcd'],
+                        path = os.path.join(config['reg_iatm_fcd'],
                                                    fcd_subject,
                                                    study,
                                                    file_)
@@ -45,33 +54,33 @@ def get_ds(config):
 
     # Lista con las rutas a las MRI de los controles
     control_paths = []
-    ctrl_subjects = next(os.walk(config['iatm_controls']))[1]
+    ctrl_subjects = next(os.walk(config['iatm_ss_controls']))[1]
     for ctrl_subject in ctrl_subjects:
-        #print(f'{ctrl_subject}')
-        studies = next(os.walk(os.path.join(config['iatm_controls'], ctrl_subject)))[1]
+        # print(f'{ctrl_subject}')
+        studies = next(os.walk(os.path.join(config['iatm_ss_controls'], ctrl_subject)))[1]
         for study in studies:
-            #print(f'\t{ctrl_subject}')
-            files = next(os.walk(os.path.join(config['iatm_controls'], ctrl_subject, study, 'NIFTI')))[2]
+            # print(f'\t{ctrl_subject}')
+            files = next(os.walk(os.path.join(config['iatm_ss_controls'], ctrl_subject, study, 'NIFTI')))[2]
             for file_ in files:
-                #print(f'\t\t{file_}\n\n')
-                p = os.path.join(config['iatm_controls'], 
-                                 ctrl_subject, studies[0], 
+                # print(f'\t\t{file_}\n\n')
+                p = os.path.join(config['iatm_ss_controls'], 
+                                 ctrl_subject, study, 
                                  'NIFTI', 
                                  file_
                 )
                 control_paths.append(p)
 
-    print(f'\nTotal sujetos de control = {len(control_paths)}')
+    print(f'\nTotal sujetos de control = {len(control_paths)}\n')
 
-    # print(f'Estudios FCD incluidos: \n')
-    # for s in fcd_subjects_path[:-config['n_test']]:
-    #     print(f'{s}')
-    # print(f'\nEstudios FCD excluidos (para test): \n')
-    # for t in fcd_subjects_path[-config['n_test']:]:
-    #     print(f'{t}')
+    print(f'Estudios FCD incluidos en entrenamiento y validacion: \n')
+    for s in fcd_subjects_path[:-config['n_test']]:
+        print(f'{s}')
+    print(f'\nEstudios FCD excluidos (para test): \n')
+    for t in fcd_subjects_path[-config['n_test']:]:
+        print(f'{t}')
 
-    fcd_scans  = np.array([preprocess(path, config) for path in fcd_subjects_path[:]])
-    ctrl_scans = np.array([preprocess(path, config) for path in control_paths[:len(fcd_scans)]])
+    fcd_scans  = np.array([preprocess(path, config) for path in fcd_subjects_path[:config['n_heads']]])
+    ctrl_scans = np.array([preprocess(path, config) for path in control_paths[:config['n_heads']]])
 
     # Vectores de etiquetas
     fcd_labels = np.array([1 for _ in range(len(fcd_scans))])
